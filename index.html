@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Antenna Radiation Pattern Visualizer</title>
+<link rel="stylesheet" href="./styles/main.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>Antenna Radiation Pattern Visualizer</h1>
+        <p id="modelName">40 m dipole, 10 m high</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="status" class="status">Ready</span>
+      <button id="solveBtn" class="primary">Analyse</button>
+      <label class="switch"><input type="checkbox" id="autoSolve" checked /> Auto</label>
+      <button id="exportBtn" class="ghost">Save</button>
+      <button id="importBtn" class="ghost">Open</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden />
+    </div>
+  </header>
+
+  <aside id="sidebar">
+    <section class="panel">
+      <h2>Start from a preset</h2>
+      <div class="row">
+        <select id="presetSelect"></select>
+        <button id="loadPresetBtn">Load</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Geometry</h2>
+        <label class="switch" title="Show the wire thickness and mesh density columns">
+          <input type="checkbox" id="advancedGeom" /> Advanced
+        </label>
+      </div>
+      <div class="table-scroll">
+        <table id="wireTable">
+          <thead>
+            <tr>
+              <th rowspan="2">Wire</th>
+              <th colspan="3" class="group-head">From (m)</th>
+              <th colspan="3" class="group-head">To (m)</th>
+              <th class="adv-col" rowspan="2" title="Wire radius in millimetres">Thick.<br />mm</th>
+              <th class="adv-col" rowspan="2" title="How finely the solver chops the wire up. It is kept in step with the wire length automatically.">Mesh</th>
+            </tr>
+            <tr>
+              <th title="Metres east">E</th><th title="Metres north">N</th><th title="Metres up">Up</th>
+              <th title="Metres east">E</th><th title="Metres north">N</th><th title="Metres up">Up</th>
+            </tr>
+          </thead>
+          <tbody id="wireTbody"></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button id="addWireBtn">+ Add wire</button>
+        <button id="autoSegBtn" class="ghost adv-col" title="Re-chop every wire for best accuracy">Re-mesh</button>
+      </div>
+      <p class="hint">Drag the blue handles in the 3D view to reshape the antenna. The red dot is the feed point.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Feed point</h2>
+      <p class="hint">Where the feed line connects.</p>
+      <div class="field">
+        <label for="feedWire">On wire</label>
+        <select id="feedWire"></select>
+      </div>
+      <div class="field">
+        <label for="feedFraction">Position along that wire · <span id="feedFractionOut">50%</span></label>
+        <input type="range" id="feedFraction" min="0" max="1" step="0.01" value="0.5" />
+        <span class="scale"><span>one end</span><span>middle</span><span>other end</span></span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Simulation</h2>
+      <div class="field">
+        <label for="freq">Frequency (MHz)</label>
+        <div class="row">
+          <input type="number" id="freq" min="0.01" step="0.005" value="7.1" />
+          <select id="bandSelect" title="Jump to the centre of an amateur band"></select>
+        </div>
+      </div>
+      <p class="hint">λ = <span id="lambdaOut">42.22 m</span> · <span id="bandOut">40 m band</span></p>
+      <div class="field">
+        <label for="groundSelect">Environment</label>
+        <select id="groundSelect">
+          <option value="free">Free space (antenna far from everything)</option>
+          <option value="perfect">Over ground (ideal earth at Up = 0)</option>
+        </select>
+      </div>
+      <p class="hint" id="groundHint" hidden>Ideal earth behaves like a perfect radial field. Real soil adds a few dB of loss, most of it at low angles, so treat low-angle gain as a best case.</p>
+      <div class="field">
+        <label for="heightOffset">Height above ground · <span id="heightOut">0.0 m</span></label>
+        <input type="range" id="heightOffset" min="0" max="40" step="0.1" value="0" title="Lifts every wire by this much, on top of its own Up coordinate" />
+      </div>
+      <div class="field">
+        <label for="z0">Feed line impedance (Ω)</label>
+        <select id="z0Preset">
+          <option value="50">50 Ω coax (RG-58, RG-213…)</option>
+          <option value="75">75 Ω coax (RG-6, RG-11)</option>
+          <option value="300">300 Ω ribbon</option>
+          <option value="450">450 Ω ladder line</option>
+          <option value="custom">Other…</option>
+        </select>
+        <input type="number" id="z0" min="1" step="1" value="50" hidden />
+      </div>
+      <div class="field">
+        <label for="materialSelect">Conductor material</label>
+        <select id="materialSelect"></select>
+      </div>
+    </section>
+
+    <section class="panel" id="warningsPanel" hidden>
+      <h2>Model checks</h2>
+      <ul id="warnings"></ul>
+    </section>
+  </aside>
+
+  <main id="stage">
+    <div id="viewport"></div>
+    <button id="toggleLeft" class="edge-toggle edge-left" type="button" aria-controls="sidebar" aria-expanded="true" title="Hide the design panel">‹</button>
+    <div id="stageOverlay">
+      <div class="overlay-top">
+        <div id="viewToolbar">
+        <label class="switch"><input type="checkbox" id="togglePattern" checked /> Pattern</label>
+        <label class="switch"><input type="checkbox" id="toggleWires" checked /> Antenna</label>
+        <label class="switch"><input type="checkbox" id="toggleCurrent" checked /> Current colours</label>
+        <select id="scaleSelect" title="Pattern radial scale">
+          <option value="db">dB scale</option>
+          <option value="linear">Linear scale</option>
+        </select>
+        <label class="slider" title="Dynamic range of the dB scale">
+          dB range
+          <input type="range" id="dbRange" min="10" max="60" step="5" value="40" />
+        </label>
+        <label class="slider" title="Pattern surface opacity">
+          Opacity
+          <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="0.85" />
+        </label>
+        <button id="resetView" class="ghost">Reset view</button>
+        </div>
+      </div>
+
+      <div class="overlay-middle">
+        <div id="rotateTools">
+          <button type="button" class="axis-x" data-axis="x" title="Rotate 90 degrees clockwise in the X plane" aria-label="Rotate 90 degrees clockwise in the X plane">⟳</button>
+          <button type="button" class="axis-y" data-axis="y" title="Rotate 90 degrees clockwise in the Y plane" aria-label="Rotate 90 degrees clockwise in the Y plane">⟳</button>
+          <button type="button" class="axis-z" data-axis="z" title="Rotate 90 degrees clockwise in the Z plane" aria-label="Rotate 90 degrees clockwise in the Z plane">⟳</button>
+        </div>
+        <div id="sidePanels">
+          <div id="summaryBox" hidden></div>
+          <div id="metrics" class="metrics"></div>
+        </div>
+      </div>
+
+      <div class="overlay-bottom">
+        <div id="hints">
+          <div id="legend"><span>low</span><div class="legend-bar"></div><span>peak</span></div>
+        </div>
+        <div id="stageDock">
+          <section class="panel glass">
+            <h2>Pattern cuts</h2>
+            <div class="cuts">
+              <canvas id="azCanvas"></canvas>
+              <canvas id="elCanvas"></canvas>
+            </div>
+          </section>
+          <section class="panel glass" id="sweepPanel">
+            <div class="panel-head">
+              <h2>SWR vs frequency</h2>
+              <div class="row">
+                <label class="inline" title="Sweep width either side of the current frequency">±<input type="number" id="sweepSpan" value="5" min="0.1" step="1" />%</label>
+                <label class="inline" title="Number of frequency points"><input type="number" id="sweepPoints" value="21" min="5" max="81" step="2" />pts</label>
+                <button id="runSweep">Sweep</button>
+                <button id="runBandSweep" class="ghost" title="Sweep the whole amateur band">Band</button>
+              </div>
+            </div>
+            <canvas id="sweepCanvas"></canvas>
+            <div id="sweepProgress" class="progress" hidden><div></div></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
