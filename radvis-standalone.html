@@ -380,14 +380,6 @@ button.icon:hover { color: var(--danger); }
   #stageDock .cuts { grid-template-columns: repeat(2, 110px); }
 }
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
-  }
-}
-</script>
 </head>
 <body>
 <div id="app">
@@ -576,7 +568,7 @@ button.icon:hover { color: var(--danger); }
     </div>
   </main>
 </div>
-<script type="text/plain" id="radvis-core">
+<textarea id="radvis-core" hidden>
 // ===== src/core/constants.js =====
 // Physical constants (SI units) used throughout the electromagnetic solver.
 export const C0 = 299792458;
@@ -617,7 +609,7 @@ export const AMATEUR_BANDS = [
 ];
 
 export function bandFor(frequencyMHz) {
-  return AMATEUR_BANDS.find((b) => frequencyMHz >= b.start && frequencyMHz <= b.stop) ?? null;
+  return AMATEUR_BANDS.find((b) => frequencyMHz >= b.start &amp;&amp; frequencyMHz <= b.stop) ?? null;
 }
 
 // ===== src/core/linalg.js =====
@@ -672,7 +664,7 @@ export function luFactor(A, n) {
       const mi = (ai * dr - ar * di) / den;
       A[oi] = mr;
       A[oi + 1] = mi;
-      if (mr === 0 && mi === 0) continue;
+      if (mr === 0 &amp;&amp; mi === 0) continue;
       for (let j = k + 1; j < n; j++) {
         const ok = 2 * (k * n + j);
         const oj = 2 * (i * n + j);
@@ -861,7 +853,7 @@ export function buildMesh(model) {
           entries: [makeEntry(node.conns[0], node.pos, true), makeEntry(node.conns[i], node.pos, false)],
         });
       }
-    } else if (m === 1 && groundOn && Math.abs(node.pos[2]) <= GROUND_TOL) {
+    } else if (m === 1 &amp;&amp; groundOn &amp;&amp; Math.abs(node.pos[2]) <= GROUND_TOL) {
       // Wire bonded to the ground plane: the image current continues the ramp,
       // so a half basis (non-zero current at the contact) is the correct choice.
       bases.push({ node: ni, entries: [makeEntry(node.conns[0], node.pos, true)], grounded: true });
@@ -895,7 +887,7 @@ function resolveFeed(model, wireNodeIds, nodes, bases, segments, warnings) {
 
   const nodeId = ids[idx];
   const onWire = (b) => b.entries.every((e) => segments[e.seg].wireId === wire.id);
-  let candidate = bases.findIndex((b) => b.node === nodeId && onWire(b));
+  let candidate = bases.findIndex((b) => b.node === nodeId &amp;&amp; onWire(b));
   if (candidate < 0) candidate = bases.findIndex((b) => b.node === nodeId);
   if (candidate < 0) {
     // Fall back to the electrically closest usable basis.
@@ -1084,7 +1076,7 @@ export function fillImpedanceMatrix(mesh, frequency, ground) {
           if (ea.seg !== eb.seg || !ea.sigma) continue;
           const zs = surfaceImpedance(ea.sigma, ea.radius, omega);
           if (!zs) continue;
-          const sameParam = ea.qx === eb.qx && ea.qy === eb.qy && ea.qz === eb.qz;
+          const sameParam = ea.qx === eb.qx &amp;&amp; ea.qy === eb.qy &amp;&amp; ea.qz === eb.qz;
           const overlap = (sameParam ? 1 / 3 : 1 / 6) * ea.L;
           const dot = ea.ux * eb.ux + ea.uy * eb.uy + ea.uz * eb.uz;
           zr += zs * overlap * dot;
@@ -1218,7 +1210,7 @@ export function computePattern(mesh, I, frequency, ground, options = {}) {
     const th = it * dTheta;
     const st = Math.sin(th);
     const ct = Math.cos(th);
-    const blocked = groundOn && it > lastTheta;
+    const blocked = groundOn &amp;&amp; it > lastTheta;
     for (let ip = 0; ip < phiCount; ip++) {
       const idx = it * phiCount + ip;
       if (blocked) continue;
@@ -1772,9 +1764,8 @@ export function sweep(model, startMHz, stopMHz, points, onProgress) {
   }
   return out;
 }
-
-</script>
-<script type="text/plain" id="radvis-worker">
+</textarea>
+<textarea id="radvis-worker" hidden>
 // ===== src/workers/solver.worker.js =====
 // Runs the method-of-moments solver off the main thread.
 
@@ -1797,15 +1788,15 @@ self.onmessage = (ev) => {
     self.postMessage({ id, type: 'error', message: err?.message ?? String(err) });
   }
 };
-
-</script>
-<script type="module">
+</textarea>
+<textarea id="radvis-app" hidden>
+// ===== standalone glue =====
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ===== standalone glue =====
-const coreSource = document.getElementById('radvis-core').textContent;
-const workerSource = document.getElementById('radvis-worker').textContent;
+const payload = (id) => document.getElementById(id).value;
+const coreSource = payload('radvis-core');
+const workerSource = payload('radvis-worker');
 const coreUrl = URL.createObjectURL(new Blob([coreSource], { type: 'text/javascript' }));
 const { AMATEUR_BANDS, MATERIALS, PRESETS, analyze, bandFor, keepMeshDensity, makeWire, modelFromJson, modelToJson, presetById, rotateModel, suggestedSegments, sweep, wavelength, wireLength } = await import(coreUrl);
 
@@ -2462,9 +2453,9 @@ function colorAt(t) {
     const [p2, c2] = COLOR_STOPS[i];
     if (x <= p2) {
       const f = (x - p1) / (p2 - p1 || 1);
-      const r = ((c1 >> 16) & 255) + (((c2 >> 16) & 255) - ((c1 >> 16) & 255)) * f;
-      const g = ((c1 >> 8) & 255) + (((c2 >> 8) & 255) - ((c1 >> 8) & 255)) * f;
-      const b = (c1 & 255) + ((c2 & 255) - (c1 & 255)) * f;
+      const r = ((c1 >> 16) &amp; 255) + (((c2 >> 16) &amp; 255) - ((c1 >> 16) &amp; 255)) * f;
+      const g = ((c1 >> 8) &amp; 255) + (((c2 >> 8) &amp; 255) - ((c1 >> 8) &amp; 255)) * f;
+      const b = (c1 &amp; 255) + ((c2 &amp; 255) - (c1 &amp; 255)) * f;
       return [r / 255, g / 255, b / 255];
     }
   }
@@ -2612,7 +2603,7 @@ class Viewer3D {
   setOptions(patch) {
     Object.assign(this.options, patch);
     this.wireGroup.visible = this.options.showWires;
-    this.handleGroup.visible = this.options.showWires && this.options.showHandles;
+    this.handleGroup.visible = this.options.showWires &amp;&amp; this.options.showHandles;
     this.patternGroup.visible = this.options.showPattern;
     if (this.result) this._buildPattern();
     this._buildWires();
@@ -2753,7 +2744,7 @@ class Viewer3D {
     const idx = [];
     const drawRadius = (r) => Math.max(r, this.span * 0.016);
 
-    const useCurrent = this.options.showCurrent && this.result?.segmentCurrents?.length;
+    const useCurrent = this.options.showCurrent &amp;&amp; this.result?.segmentCurrents?.length;
     if (useCurrent) {
       let maxI = 0;
       for (const v of this.result.segmentCurrents) maxI = Math.max(maxI, v);
@@ -2840,7 +2831,7 @@ class Viewer3D {
         this.handleGroup.add(mesh);
       }
     }
-    this.handleGroup.visible = this.options.showWires && this.options.showHandles;
+    this.handleGroup.visible = this.options.showWires &amp;&amp; this.options.showHandles;
   }
 
   _buildPattern() {
@@ -2939,7 +2930,7 @@ class Viewer3D {
       const p = new THREE.Vector3();
       if (!this.raycaster.ray.intersectPlane(this.dragPlane, p)) return;
       p.add(this.dragOffset);
-      if (this.model?.ground === 'perfect' && p.z < 0) p.z = 0;
+      if (this.model?.ground === 'perfect' &amp;&amp; p.z < 0) p.z = 0;
       this.dragTarget.position.copy(p);
       const { wireId, end } = this.dragTarget.userData;
       this.callbacks.onHandleDrag?.(wireId, end, [p.x, p.y, p.z], false);
@@ -3151,7 +3142,7 @@ function loadModel(next, { fit = true } = {}) {
   runAnalysis();
 }
 
-// ---- toolbar & file actions -------------------------------------------------
+// ---- toolbar &amp; file actions -------------------------------------------------
 
 $('solveBtn').addEventListener('click', runAnalysis);
 $('runSweep').addEventListener('click', runSweep);
@@ -3235,7 +3226,20 @@ drawPolar(azCanvas, null);
 drawPolar(elCanvas, null);
 drawSweep(sweepCanvas, null);
 runAnalysis();
-
+</textarea>
+<script>
+if (!window.__radvisStarted) {
+  window.__radvisStarted = true;
+  var map = document.createElement('script');
+  map.type = 'importmap';
+  map.textContent = "{\"imports\":{\"three\":\"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js\",\"three/addons/\":\"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/\"}}";
+  document.head.appendChild(map);
+  var appUrl = URL.createObjectURL(new Blob([document.getElementById('radvis-app').value], { type: 'text/javascript' }));
+  import(appUrl).catch(function (err) {
+    console.error(err);
+    document.getElementById('status').textContent = 'Could not start: ' + err.message;
+  });
+}
 </script>
 </body>
 </html>
