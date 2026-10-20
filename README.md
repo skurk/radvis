@@ -23,7 +23,7 @@ No installs, no platform restrictions, no top-end system requirements.
 Because it's always neat to have a portable tool available, no matter where you are. 
 
 ## Where?
-You can try it live here: (https://htmlpreview.github.io/?https://raw.githubusercontent.com/skurk/radvis/refs/heads/main/radvis-standalone.html)
+You can try it live here: [open link in htmlpreview.github.io](https://htmlpreview.github.io/?https://raw.githubusercontent.com/skurk/radvis/refs/heads/main/radvis-standalone.html)
 
 ## Who?
 Stian LB5SH
